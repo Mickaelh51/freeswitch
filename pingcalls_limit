@@ -1,0 +1,20 @@
+<!-- LIMIT PING CALL WHITH FREESWITCH -->
+<!-- ${custdomain} == sip1.customer1.com -->
+<!-- ${limitcalls} == yes -->
+<condition field="${destination_number}" expression=".*" break="never">
+   	<action inline="true" application="set" data="limtotcalls=300" />
+         <action inline="true" application="set" data="limcps=${expr(ceil(${limtotcalls}*10/100))}" /> <!-- ==>  30 CPS MAX -->
+	<action inline="true" application="set" data="limcallprogress=${expr(ceil(${limtotcalls}*50/100))}" /> <!-- ==> 150 progress calls MAX -->
+</condition>
+
+<condition field="${limitcalls}" expression="^yes$" break="never">
+	<action application="limit" data="hash cps ${custdomain} ${limcps}/1 limit_exceeded_cps XML excess_limit"/>
+	<action application="limit" data="hash total ${custdomain} ${limtotcalls} limit_exceeded_total XML excess_limit" />
+	<action application="export" data="nolocal:execute_on_answer=limit hash answercall ${custdomain} -1"/>
+</condition>
+
+<condition field="${cond(${expr(${limit_usage(hash total ${custdomain})} - ${limit_usage(hash answercall ${custdomain})})} > ${limcallprogress} ? true:false)}" expression="^true$" break="on-true">
+	<action application="log" data="WARNING LOG : Limit Call progress exceeded to ${custdomain} (${limcallprogress})"/>
+	<action application="respond" data="503"/>
+	<action application="hangup" data="CALL_REJECTED"/>
+</condition>
